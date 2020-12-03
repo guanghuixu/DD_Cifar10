@@ -13,6 +13,7 @@ import argparse
 
 from models import *
 from utils import progress_bar
+
 import random
 import numpy as np
 from cifar import CIFAR10
@@ -54,36 +55,18 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-def transform_tensor(dataset):
-    tensors = []
-    labels = []
-    for (inputs, targets) in dataset:
-        tensors.append(inputs)
-        labels.append(targets)
-    tensors = torch.stack(tensors)
-    labels = torch.LongTensor(labels)
-    return (tensors, labels)
 
-def shuffle_dataset(dataset):
-    tensors, labels = dataset
-    dataset_size = labels.size(0)
-    idx = random.sample(np.arange(dataset_size).tolist(), dataset_size)
-    return (tensors[idx], labels[idx])
-
-
-trainset = torchvision.datasets.CIFAR10(
-    root='./data', train=True, download=True, transform=transform_train)
-# trainset = CIFAR10(
+# trainset = torchvision.datasets.CIFAR10(
 #     root='./data', train=True, download=True, transform=transform_train)
-trainset = transform_tensor(trainset)
+trainset = CIFAR10(
+    root='./data', train=True, download=True, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(
-    trainset, batch_size=128, shuffle=True, num_workers=2)
+    trainset, batch_size=128, shuffle=False, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(
     root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=100, shuffle=False, num_workers=2)
-our_testloader = transform_tensor(testset)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
@@ -119,24 +102,38 @@ if args.resume:
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
 
+def get_optimizer_parameters():
+        optimizer_param_groups = []
+
+        optimizer_param_groups.append({
+                "params": list(net.parameters()),
+                # "lr": args.lr
+        })
+
+        img_params = []
+        for img, _ in trainset:
+            img.requires_grad = True
+            img_params.append(img)
+        # put the default lr parameters at the beginning
+        # so that the printed lr (of group 0) matches the default lr
+        optimizer_param_groups.insert(0, {"params": img_params})
+
+        return optimizer_param_groups
+
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr,
-                      momentum=0.9, weight_decay=5e-4)
+# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+optimizer = optim.SGD(get_optimizer_parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
 
 # Training
-def train(epoch, our_trainloader):
+def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = 0
     correct = 0
     total = 0
-    # for batch_idx, (inputs, targets) in enumerate(trainloader):
-    our_trainloader = shuffle_dataset(our_trainloader)
-    for batch_idx in range(0, len(trainset)//128+1, 1):
-        inputs = our_trainloader[0][batch_idx*128: (batch_idx+1)*128]
-        targets = our_trainloader[1][batch_idx*128: (batch_idx+1)*128]
+    for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = net(inputs)
@@ -160,10 +157,7 @@ def test(epoch):
     correct = 0
     total = 0
     with torch.no_grad():
-        # for batch_idx, (inputs, targets) in enumerate(testloader):
-        for batch_idx in range(0, len(testset)//100, 1):
-            inputs = our_testloader[0][batch_idx*100: (batch_idx+1)*100]
-            targets = our_testloader[1][batch_idx*100: (batch_idx+1)*100]
+        for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
             loss = criterion(outputs, targets)
@@ -192,6 +186,6 @@ def test(epoch):
 
 
 for epoch in range(start_epoch, start_epoch+200):
-    train(epoch, our_trainloader)
+    train(epoch)
     test(epoch)
     scheduler.step()
