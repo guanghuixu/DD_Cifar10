@@ -60,7 +60,7 @@ transform_test = transforms.Compose([
 trainset = torchvision.datasets.CIFAR10(
     root='./data', train=True, download=True, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(
-    trainset, batch_size=128, shuffle=True, num_workers=2)
+    trainset, batch_size=512, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(
     root='./data', train=False, download=True, transform=transform_test)
@@ -123,27 +123,29 @@ max_acc = 0
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
-    net.train()
-    net_meta.train()
 
     train_loss = 0
     correct = 0
     total = 0
 
-    # meta
-    net_meta.zero_grad()
-    optimizer_img.zero_grad()
-    meta_outputs = net_meta(meta_imgs)
-    loss_meta = criterion(meta_outputs, meta_labels)
-
-    # original: overall dataset
-    optimizer.zero_grad()
-    net.zero_grad()
-    train_loss = 0
     for batch_idx, (inputs, targets) in enumerate(trainloader):
+        net.train()
+        net_meta.train()
+
+        # meta
+        net_meta.zero_grad()
+        optimizer_img.zero_grad()
+        meta_outputs = net_meta(meta_imgs)
+        loss_meta = criterion(meta_outputs, meta_labels)
+
+        # original: overall dataset
+        optimizer.zero_grad()
+        net.zero_grad()
+
         inputs, targets = inputs.to(device), targets.to(device)
         outputs = net(inputs)
-        train_loss += criterion(outputs, targets)
+        loss = criterion(outputs, targets)
+        train_loss += loss.item()
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
@@ -151,22 +153,21 @@ def train(epoch):
                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 
-    train_loss.backward(create_graph=True)
-    loss_meta.backward(create_graph=True)
+        loss.backward(create_graph=True)
+        loss_meta.backward(create_graph=True)
 
-    matching_loss = 0
-    for (params1, params2) in zip(net.parameters(), net_meta.parameters()):
-        matching_loss += mse_loss(params1.grad, params2.grad)
-    matching_loss.backward(create_graph=False)
+        matching_loss = 0
+        for (params1, params2) in zip(net.parameters(), net_meta.parameters()):
+            matching_loss += mse_loss(params1.grad, params2.grad)
+        matching_loss.backward(create_graph=False)
 
-    optimizer_img.step()
-    optimizer.step()
+        optimizer_img.step()
+        optimizer.step()
 
     acc = 100.*correct/total
     if acc > max_acc:
         torch.save(meta_imgs.data.cpu(), './checkpoint/img-{}.pth'.format(epoch))
         acc = max_acc
-
 
 def test(epoch):
     global best_acc
