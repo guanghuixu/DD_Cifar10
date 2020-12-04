@@ -12,6 +12,28 @@ else:
 
 from torchvision.datasets.vision import VisionDataset
 from torchvision.datasets.utils import check_integrity, download_and_extract_archive
+import random
+import numpy as np
+import torch
+
+def construct_meta_dataset(dataset, meta_num=100, class_num=10):
+    each_num = meta_num // class_num
+    assert meta_num % class_num == 0
+    meta_img = [[] for _ in range(class_num)]
+    dataset = [i for i in dataset]
+    random.shuffle(dataset)
+    for (img, label) in dataset:
+        if len(meta_img[label]) <= each_num: 
+            meta_img[label].append(img)
+    meta_img = torch.stack([torch.stack(i) for i in meta_img]).view(-1, 3, 32, 32)
+    meta_label = torch.arange(class_num).unsqueeze(-1).expand(class_num, each_num).contiguous().view(-1)
+    random_idx = np.arange(meta_num)
+    random.shuffle(random_idx)
+    meta_img = meta_img[random_idx]
+    meta_label = meta_label[random_idx]
+    meta_img.requries_grad = True
+    return (meta_img, meta_label)
+        
 
 
 class CIFAR10(VisionDataset):
