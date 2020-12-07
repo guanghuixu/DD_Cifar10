@@ -17,7 +17,6 @@ from utils import progress_bar
 import random
 import numpy as np
 from cifar import construct_meta_dataset
-from copy import deepcopy
 
 def seed_torch(seed):
     random.seed(seed)
@@ -34,7 +33,7 @@ seed_torch(2021)
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-parser.add_argument('--resume', '-r', action='store_true',
+parser.add_argument('--resume', '-r', default=None, type=str,
                     help='resume from checkpoint')
 args = parser.parse_args()
 
@@ -71,13 +70,15 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
 
 meta_imgs, meta_labels = construct_meta_dataset(trainset, meta_num=100, class_num=len(classes))
-assert meta_imgs.requries_grad == True
+meta_imgs = meta_imgs.to(device)
+meta_labels = meta_labels.to(device)
+
+# assert meta_imgs.requries_grad == True
 
 # Model
 print('==> Building model..')
 # net = VGG('VGG19')
 net = ResNet18()
-net_meta = deepcopy(net)
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -92,81 +93,53 @@ net_meta = deepcopy(net)
 # net = RegNetX_200MF()
 # net = SimpleDLA()
 net = net.to(device)
-net_meta = net_meta.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
-    net_meta = torch.nn.DataParallel(net_meta)
     cudnn.benchmark = True
 
 if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/ckpt.pth')
+    checkpoint = torch.load(args.resume)
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
+    meta_imgs = checkpoint['meta_imgs'].to(device)
+    meta_labels = checkpoint['meta_labels'].to(device)
 
 criterion = nn.CrossEntropyLoss()
-mse_loss = nn.MSELoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+optimizer = optim.SGD(net.parameters(), lr=args.lr,
+                      momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
-optimizer_img = optim.SGD([{"params": meta_imgs}], lr=args.lr, momentum=0.9, weight_decay=5e-4)
-scheduler_img = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_img, T_max=200)
-
-meta_imgs = meta_imgs.to(device)
-meta_labels = meta_labels.to(device)
-
-max_acc = 0
 
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
-
+    net.train()
     train_loss = 0
     correct = 0
     total = 0
-
-    for batch_idx, (inputs, targets) in enumerate(trainloader):
-        net.train()
-        net_meta.train()
-
-        # meta
-        net_meta.zero_grad()
-        optimizer_img.zero_grad()
-        meta_outputs = net_meta(meta_imgs)
-        loss_meta = criterion(meta_outputs, meta_labels)
-
-        # original: overall dataset
+    meta_num = meta_labels.size(0)
+    for batch_idx in range(10):
+        random_idx = np.arange(meta_num)
+        random.shuffle(random_idx)
+        inputs, targets = meta_imgs[random_idx], meta_labels[random_idx]
         optimizer.zero_grad()
-        net.zero_grad()
-
-        inputs, targets = inputs.to(device), targets.to(device)
         outputs = net(inputs)
         loss = criterion(outputs, targets)
+        loss.backward()
+        optimizer.step()
+
         train_loss += loss.item()
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                    % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
+        progress_bar(batch_idx, meta_num, 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-        loss.backward(create_graph=True)
-        loss_meta.backward(create_graph=True)
-
-        matching_loss = 0
-        for (params1, params2) in zip(net.parameters(), net_meta.parameters()):
-            matching_loss += mse_loss(params1.grad, params2.grad)
-        matching_loss.backward(create_graph=False)
-
-        optimizer_img.step()
-        optimizer.step()
-
-        with torch.no_grad():
-            for (params1, params2) in zip(net.parameters(), net_meta.parameters()):
-                params2.data.copy_(params1.data)
 
 def test(epoch):
     global best_acc
@@ -196,12 +169,10 @@ def test(epoch):
             'net': net.state_dict(),
             'acc': acc,
             'epoch': epoch,
-            'meta_imgs': meta_imgs.data.cpu(),
-            'meta_labels': meta_labels.data.cpu()
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt-{}.pth'.format(epoch))
+        torch.save(state, './checkpoint/meta_ckpt.pth')
         best_acc = acc
 
 
@@ -209,4 +180,3 @@ for epoch in range(start_epoch, start_epoch+200):
     train(epoch)
     test(epoch)
     scheduler.step()
-    scheduler_img.step()
