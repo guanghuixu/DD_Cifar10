@@ -1,0 +1,10 @@
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 1.0
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 0.9
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 0.8
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 0.7
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 0.6
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 0.5
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 0.4
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 0.3
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 0.2
+CUDA_VISIBLE_DEVICES=$1 python $2 --model_name $3 --ratio 0.1

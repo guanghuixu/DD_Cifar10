@@ -75,7 +75,7 @@ class CIFAR10(VisionDataset):
     }
 
     def __init__(self, root, train=True, transform=None, target_transform=None,
-                 download=False):
+                 download=False, ratio=1.0):
 
         super(CIFAR10, self).__init__(root, transform=transform,
                                       target_transform=target_transform)
@@ -113,6 +113,15 @@ class CIFAR10(VisionDataset):
 
         self.data = np.vstack(self.data).reshape(-1, 3, 32, 32)
         self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
+
+        # sample items based on the ratio
+        random_idx = np.arange(len(self.targets))
+        random.shuffle(random_idx)
+        self.data = self.data[random_idx]
+        self.targets = [self.targets[random_id] for random_id in random_idx]
+        num = int(len(random_idx) * ratio)
+        self.data = self.data[:num]
+        self.targets = self.targets[:num]
 
         self._load_meta()
 
