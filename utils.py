@@ -127,7 +127,8 @@ def format_time(seconds):
 def record_acc(root_name='./checkpoint'):
     paths = os.listdir(root_name)
     for path in paths:
+        if 'CIFAR100' not in path: continue
         file_name = os.path.join(root_name, path)
         acc = torch.load(file_name, map_location='cpu')['acc']
-        print(path.replace('ResNet','').replace('_ckpt-',' ').replace('.pth',''), acc)
-# record_acc(root_name='./checkpoint')
+        print(path.replace('ResNet','').replace('_ckpt-',' ').replace('-CIFAR100.pth',''), acc)
+record_acc(root_name='./checkpoint')

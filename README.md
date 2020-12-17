@@ -14,6 +14,11 @@ python main.py
 # You can manually resume the training with: 
 python main.py --resume --lr=0.01
 ```
+## Training with ratio
+```
+CIFAR10: bash run_model.sh 4 main_ratio.py ResNet10
+CIFAR100: bash run_model.sh 4 main_ratio_cifar100.py ResNet10 
+```
 
 ## Accuracy
 | Model             | Acc.        |
