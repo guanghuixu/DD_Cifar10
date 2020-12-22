@@ -20,6 +20,12 @@ CIFAR10: bash run_model.sh 4 main_ratio.py ResNet10
 CIFAR100: bash run_model.sh 4 main_ratio_cifar100.py ResNet10 
 ```
 
+## ImageNet visulization with hist
+```
+mkdir results  # the save dir
+CUDA_VISIBLE_DEVICES=4 python imagenet.py -a resnet50 --pretrained /mnt/dataset/imagenet
+```
+
 ## Accuracy
 | Model             | Acc.        |
 | ----------------- | ----------- |
