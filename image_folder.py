@@ -139,7 +139,7 @@ class DatasetFolder(VisionDataset):
                 total_nums[target] < class_dict[target] * ratio:
                 samples.append((sample, target))
                 targets.append(target)
-                class_num[target] += 1
+                total_nums[target] += 1
         self.samples = samples
         self.targets = targets
 

@@ -33,6 +33,11 @@ CUDA_VISIBLE_DEVICES=4 python imagenet.py -a resnet50 -b 64 --pretrained /mnt/da
 # see image_folder.py Line 110
 ```
 
+## Train ImageNet within mobilenet
+```
+bash ddp.sh 0,1,2,3 256
+```
+
 ## Accuracy
 | Model             | Acc.        |
 | ----------------- | ----------- |

@@ -17,10 +17,11 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+
 import numpy as np
-import os
-import matplotlib.pyplot as plt
 from image_folder import ImageFolder
+# from FNA.fna_det.models.derived_imagenet_net import ImageNetModel
+from models.my_mobilenet.derived_imagenet_net import ImageNetModel
 
 def seed_torch(seed):
     random.seed(seed)
@@ -33,39 +34,6 @@ def seed_torch(seed):
     torch.backends.cudnn.deterministic = True
     
 seed_torch(2021)
-
-sample_num = 30
-random_idx = np.arange(1000)
-random.shuffle(random_idx)
-random_idx = random_idx[:sample_num]
-results = []
-
-def get_value(input_tensor):
-    input_tensor = input_tensor.transpose(0,1).data.cpu()[random_idx]
-    results.append(input_tensor)
-
-def splitgroup(split_num=50):
-    ans = torch.cat(results, dim=1).data.cpu().numpy()  # [sample_num, batch]
-    for i, item_i in enumerate(ans):
-        # max_v, min_v = max(item_i), min(item_i)
-        # gap = (max_v - min_v) / split_num
-        # tmp = [0 for _ in range(split_num+1)]
-        # for item_j in item_i:
-        #     tmp[int((item_j - min_v) // gap)] += 1
-        # tmp[-2] += tmp[-1]
-        # print(min_v.item(), max_v.item(), gap.item(), end=' ')
-        # for k in tmp[:-1]:
-        #     print(k, end=' ')
-        # print()
-        plt.figure()
-        plt.hist(x = item_i,
-                bins = split_num, 
-                color = 'steelblue', 
-                edgecolor = 'black'
-                )
-        plt.savefig('results/{}.jpg'.format(i))
-        plt.close()
-
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -85,7 +53,7 @@ parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=64, type=int,
+parser.add_argument('-b', '--batch-size', default=256, type=int,
                     metavar='N',
                     help='mini-batch size (default: 256), this is the total '
                          'batch size of all GPUs on the current node when '
@@ -178,14 +146,13 @@ def main_worker(gpu, ngpus_per_node, args):
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
     # create model
-    if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
-    else:
-        print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch]()
-    
-    # model.fc = torch.nn.Identity()
+    # if args.pretrained:
+    #     print("=> using pre-trained model '{}'".format(args.arch))
+    #     model = models.__dict__[args.arch](pretrained=True)
+    # else:
+    #     print("=> creating model '{}'".format(args.arch))
+    #     model = models.__dict__[args.arch]()
+    model = ImageNetModel(net_config='mobilenet_config', num_classes=100)
 
     if not torch.cuda.is_available():
         print('using CPU, this will be slow')
@@ -255,7 +222,6 @@ def main_worker(gpu, ngpus_per_node, args):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
-    # train_dataset = datasets.ImageFolder(
     train_dataset = ImageFolder(
         traindir,
         transforms.Compose([
@@ -263,7 +229,7 @@ def main_worker(gpu, ngpus_per_node, args):
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
-        ]),class_num=10, ratio=0.1)
+        ]), class_num=100, ratio=1.0)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -274,15 +240,13 @@ def main_worker(gpu, ngpus_per_node, args):
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
-    val_set = ImageFolder(valdir, transforms.Compose([
+    val_loader = torch.utils.data.DataLoader(
+        ImageFolder(valdir, transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
-            normalize,]), 
-            class_num=100, ratio=0.1)
-
-    val_loader = torch.utils.data.DataLoader(
-        val_set,
+            normalize,
+        ]), class_num=100, ratio=1.0),
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
@@ -290,33 +254,30 @@ def main_worker(gpu, ngpus_per_node, args):
         validate(val_loader, model, criterion, args)
         return
 
-    # for epoch in range(args.start_epoch, args.epochs):
-    for epoch in range(1):
+    for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args)
-        torch.save(results, 'results.pth')
-        splitgroup()
 
-        # # evaluate on validation set
-        # acc1 = validate(val_loader, model, criterion, args)
+        # evaluate on validation set
+        acc1 = validate(val_loader, model, criterion, args)
 
-        # # remember best acc@1 and save checkpoint
-        # is_best = acc1 > best_acc1
-        # best_acc1 = max(acc1, best_acc1)
+        # remember best acc@1 and save checkpoint
+        is_best = acc1 > best_acc1
+        best_acc1 = max(acc1, best_acc1)
 
-        # if not args.multiprocessing_distributed or (args.multiprocessing_distributed
-        #         and args.rank % ngpus_per_node == 0):
-        #     save_checkpoint({
-        #         'epoch': epoch + 1,
-        #         'arch': args.arch,
-        #         'state_dict': model.state_dict(),
-        #         'best_acc1': best_acc1,
-        #         'optimizer' : optimizer.state_dict(),
-        #     }, is_best)
+        if not args.multiprocessing_distributed or (args.multiprocessing_distributed
+                and args.rank % ngpus_per_node == 0):
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': model.state_dict(),
+                'best_acc1': best_acc1,
+                'optimizer' : optimizer.state_dict(),
+            }, is_best)
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
@@ -331,8 +292,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         prefix="Epoch: [{}]".format(epoch))
 
     # switch to train mode
-    # model.train()
-    model.eval()
+    model.train()
 
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
@@ -346,19 +306,18 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         # compute output
         output = model(images)
-        get_value(output)
-        # loss = criterion(output, target)
+        loss = criterion(output, target)
 
-        # # measure accuracy and record loss
-        # acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        # losses.update(loss.item(), images.size(0))
-        # top1.update(acc1[0], images.size(0))
-        # top5.update(acc5[0], images.size(0))
+        # measure accuracy and record loss
+        acc1, acc5 = accuracy(output, target, topk=(1, 5))
+        losses.update(loss.item(), images.size(0))
+        top1.update(acc1[0], images.size(0))
+        top5.update(acc5[0], images.size(0))
 
-        # # compute gradient and do SGD step
-        # optimizer.zero_grad()
-        # loss.backward()
-        # optimizer.step()
+        # compute gradient and do SGD step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
         # measure elapsed time
         batch_time.update(time.time() - end)
