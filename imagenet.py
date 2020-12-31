@@ -20,6 +20,7 @@ import torchvision.models as models
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from image_folder import ImageFolder
 
 def seed_torch(seed):
     random.seed(seed)
@@ -254,14 +255,15 @@ def main_worker(gpu, ngpus_per_node, args):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
-    train_dataset = datasets.ImageFolder(
+    # train_dataset = datasets.ImageFolder(
+    train_dataset = ImageFolder(
         traindir,
         transforms.Compose([
             transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
-        ]))
+        ]),class_num=10, ratio=0.1)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -272,13 +274,15 @@ def main_worker(gpu, ngpus_per_node, args):
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
+    val_set = ImageFolder(valdir, transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
-            normalize,
-        ])),
+            normalize,]), 
+            class_num=100, ratio=0.1)
+
+    val_loader = torch.utils.data.DataLoader(
+        val_set,
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 

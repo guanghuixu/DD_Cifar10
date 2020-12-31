@@ -26,6 +26,13 @@ mkdir results  # the save dir
 CUDA_VISIBLE_DEVICES=4 python imagenet.py -a resnet50 --pretrained /mnt/dataset/imagenet
 ```
 
+## ImageNet: sample_class_ratio
+```
+CUDA_VISIBLE_DEVICES=4 python imagenet.py -a resnet50 -b 64 --pretrained /mnt/dataset/imagenet
+# see imagenet.py Line 259
+# see image_folder.py Line 110
+```
+
 ## Accuracy
 | Model             | Acc.        |
 | ----------------- | ----------- |
