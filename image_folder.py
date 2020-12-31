@@ -109,20 +109,34 @@ class DatasetFolder(VisionDataset):
 
         if class_num<1000 or ratio<1.0:
             self._sample_class_ratio(class_num, ratio)
+    # random_version
+    # def _sample_class_ratio(self, class_num, ratio):
+    #     class_dict = collections.Counter(self.targets)
+    #     random_classes = random.sample(list(np.arange(1000)), class_num)
+    #     random_ids = list(np.arange(len(self.samples)))
+    #     random.shuffle(random_ids)
+        
+    #     samples = []
+    #     targets = []
+    #     class_num = [0 for _ in range(1000)]
+    #     for idx in random_ids:
+    #         sample, target = self.samples[idx]
+    #         if target in random_classes and \
+    #             class_num[target] < class_dict[target] * ratio:
+    #             samples.append((sample, target))
+    #             targets.append(target)
+    #             class_num[target] += 1
+    #     self.samples = samples
+    #     self.targets = targets
 
     def _sample_class_ratio(self, class_num, ratio):
         class_dict = collections.Counter(self.targets)
-        random_classes = random.sample(list(np.arange(1000)), class_num)
-        random_ids = list(np.arange(len(self.samples)))
-        random.shuffle(random_ids)
-        
         samples = []
         targets = []
-        class_num = [0 for _ in range(1000)]
-        for idx in random_ids:
-            sample, target = self.samples[idx]
-            if target in random_classes and \
-                class_num[target] < class_dict[target] * ratio:
+        total_nums = [0 for _ in range(1000)]
+        for sample, target in self.samples:
+            if target < class_num and \
+                total_nums[target] < class_dict[target] * ratio:
                 samples.append((sample, target))
                 targets.append(target)
                 class_num[target] += 1
