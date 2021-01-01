@@ -15,7 +15,10 @@ def load_checkpoint(filename,
     logger.info('Start loading the model from ' + filename)
     checkpoint = torch.load(filename, map_location=map_location)
     # get state_dict from checkpoint
-    if isinstance(checkpoint, OrderedDict) or isinstance(checkpoint, dict):
+
+    if filename.endswith('.pth.tar'):  # our trained model in top-100 classes
+        state_dict = checkpoint['state_dict']
+    elif isinstance(checkpoint, OrderedDict) or isinstance(checkpoint, dict):
         state_dict = checkpoint
     else:
         raise RuntimeError(
@@ -50,6 +53,10 @@ def remap_for_paramadapt(load_path, model_dict, seed_num_layers=[]):
             depth_mapped_dict[k] = seed_dict[seed_key]
         elif k in seed_dict:
             depth_mapped_dict[k] = seed_dict[k]
+        # try:
+        #     print('{}-----{}'.format(k, seed_key))
+        # except:
+        #     print('{} not in keys'.format(k))
 
     # remapping on the width and kernel level simultaneously
     mapped_dict = {}
@@ -86,12 +93,13 @@ def remap_for_paramadapt(load_path, model_dict, seed_num_layers=[]):
 def test():
     from models.my_mobilenet.derived_imagenet_net import ImageNetModel
     import torch
-    model = ImageNetModel(net_config='models/my_mobilenet/new_config')
+    model = ImageNetModel(net_config='models/my_mobilenet/retina_config')
     model_dict = model.state_dict()
     for key, value in model_dict.items():
         model_dict[key] = torch.zeros_like(value)
-        print(key)
-    new_model = remap_for_paramadapt(load_path='models/my_mobilenet/seed_mbv2.pt', 
+    new_model = remap_for_paramadapt(load_path='checkpoint/model_best.pth.tar', 
                                     model_dict=model_dict, 
                                     seed_num_layers=[1, 1, 2, 3, 4, 3, 3, 1, 1])
-    print(new_model[key])
+                                    # seed_num_layers=[1, 1, 2, 3, 4, 3, 3, 3, 3, 3, 1, 1])
+    for value in new_model.values():
+        print(value.sum())

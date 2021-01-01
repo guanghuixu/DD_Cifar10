@@ -21,6 +21,7 @@ import torchvision.models as models
 import numpy as np
 from image_folder import ImageFolder
 from models.my_mobilenet.derived_imagenet_net import ImageNetModel
+from models.my_mobilenet.param_remap import remap_for_paramadapt
 
 def seed_torch(seed):
     random.seed(seed)
@@ -34,6 +35,9 @@ def seed_torch(seed):
     
 seed_torch(2021)
 
+# from models.my_mobilenet.param_remap import test
+# test()
+
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
     and callable(models.__dict__[name]))
@@ -41,8 +45,14 @@ model_names = sorted(name for name in models.__dict__
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('data', metavar='DIR',
                     help='path to dataset')
+# parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
+#                     choices=model_names,
+#                     help='model architecture: ' +
+#                         ' | '.join(model_names) +
+#                         ' (default: resnet18)')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
-                    choices=model_names,
+                    # choices=model_names, 
+                    type=str,
                     help='model architecture: ' +
                         ' | '.join(model_names) +
                         ' (default: resnet18)')
@@ -80,7 +90,7 @@ parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
                     help='url used to set up distributed training')
 parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
-parser.add_argument('--seed', default=None, type=int,
+parser.add_argument('--seed', default=2021, type=int,
                     help='seed for initializing training. ')
 parser.add_argument('--gpu', default=None, type=int,
                     help='GPU id to use.')
@@ -151,7 +161,16 @@ def main_worker(gpu, ngpus_per_node, args):
     # else:
     #     print("=> creating model '{}'".format(args.arch))
     #     model = models.__dict__[args.arch]()
-    model = ImageNetModel(net_config='models/my_mobilenet/mobilenet_config', num_classes=100)
+    model = ImageNetModel(
+        net_config='models/my_mobilenet/{}_config'.format(args.arch), 
+        num_classes=100)
+    if args.pretrained:
+        state_dict = remap_for_paramadapt(
+            load_path='checkpoint/model_best.pth.tar', 
+            model_dict=model.state_dict(), 
+            seed_num_layers=[1, 1, 2, 3, 4, 3, 3, 1, 1])
+        model.load_state_dict(state_dict)
+        print('success remap_for_paramadapt')
 
     if not torch.cuda.is_available():
         print('using CPU, this will be slow')
@@ -276,7 +295,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
                 'optimizer' : optimizer.state_dict(),
-            }, is_best)
+            }, is_best, args.arch)
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
@@ -371,10 +390,11 @@ def validate(val_loader, model, criterion, args):
     return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+def save_checkpoint(state, is_best, arch):
+    filename='checkpoint/{}_checkpoint.pth.tar'.format(arch)
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+        shutil.copyfile(filename, 'checkpoint/{}_model_best.pth.tar'.format(arch))
 
 
 class AverageMeter(object):
