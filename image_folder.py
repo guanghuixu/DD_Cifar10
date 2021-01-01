@@ -118,14 +118,14 @@ class DatasetFolder(VisionDataset):
         
     #     samples = []
     #     targets = []
-    #     class_num = [0 for _ in range(1000)]
+    #     total_nums = [0 for _ in range(1000)]
     #     for idx in random_ids:
     #         sample, target = self.samples[idx]
     #         if target in random_classes and \
-    #             class_num[target] < class_dict[target] * ratio:
+    #             total_nums[target] < class_dict[target] * ratio:
     #             samples.append((sample, target))
     #             targets.append(target)
-    #             class_num[target] += 1
+    #             total_nums[target] += 1
     #     self.samples = samples
     #     self.targets = targets
 

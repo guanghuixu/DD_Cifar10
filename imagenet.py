@@ -20,7 +20,6 @@ import torchvision.models as models
 
 import numpy as np
 from image_folder import ImageFolder
-# from FNA.fna_det.models.derived_imagenet_net import ImageNetModel
 from models.my_mobilenet.derived_imagenet_net import ImageNetModel
 
 def seed_torch(seed):
@@ -152,7 +151,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # else:
     #     print("=> creating model '{}'".format(args.arch))
     #     model = models.__dict__[args.arch]()
-    model = ImageNetModel(net_config='mobilenet_config', num_classes=100)
+    model = ImageNetModel(net_config='models/my_mobilenet/mobilenet_config', num_classes=100)
 
     if not torch.cuda.is_available():
         print('using CPU, this will be slow')

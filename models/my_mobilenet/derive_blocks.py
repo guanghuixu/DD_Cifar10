@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-# from ..tools.utils import parse_net_config, sort_net_config
 from .operations import OPS, conv_bn
 
 def parse_net_config(net_config):
