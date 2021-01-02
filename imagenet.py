@@ -22,6 +22,7 @@ import numpy as np
 from image_folder import ImageFolder
 from models.my_mobilenet.derived_imagenet_net import ImageNetModel
 from models.my_mobilenet.param_remap import remap_for_paramadapt
+from models.my_mobilenet import configs
 
 def seed_torch(seed):
     random.seed(seed)
@@ -162,7 +163,8 @@ def main_worker(gpu, ngpus_per_node, args):
     #     print("=> creating model '{}'".format(args.arch))
     #     model = models.__dict__[args.arch]()
     model = ImageNetModel(
-        net_config='models/my_mobilenet/{}_config'.format(args.arch), 
+        # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
+        net_config=getattr(configs, '{}_config'.format(args.arch)), 
         num_classes=100)
     if args.pretrained:
         state_dict = remap_for_paramadapt(

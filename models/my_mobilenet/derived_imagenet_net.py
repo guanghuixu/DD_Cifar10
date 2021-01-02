@@ -6,8 +6,8 @@ from .operations import Conv1_1
 class ImageNetModel(nn.Module):
     def __init__(self, net_config, num_classes=1000):
         super(ImageNetModel, self).__init__()
-        self.blocks, parsed_net_config = derive_blocks(
-            load_net_config(net_config))
+        self.blocks, parsed_net_config = derive_blocks(net_config)
+            # load_net_config(net_config))
         self.blocks.append(Conv1_1(parsed_net_config[-1][0][1], 1280))
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
         self.classifier = nn.Linear(1280, num_classes)
