@@ -90,7 +90,7 @@ class DatasetFolder(VisionDataset):
     """
 
     def __init__(self, root, loader, extensions=None, transform=None,
-                 target_transform=None, is_valid_file=None, class_num=1000, ratio=1.0):
+                 target_transform=None, is_valid_file=None, class_num=1000, ratio=1.0, flag='train', split=1.0):
         super(DatasetFolder, self).__init__(root, transform=transform,
                                             target_transform=target_transform)
         classes, class_to_idx = self._find_classes(self.root)
@@ -108,7 +108,7 @@ class DatasetFolder(VisionDataset):
         self.targets = [s[1] for s in samples]
 
         if class_num<1000 or ratio<1.0:
-            self._sample_class_ratio(class_num, ratio)
+            self._sample_class_ratio(class_num, ratio, flag, split)
     # random_version
     # def _sample_class_ratio(self, class_num, ratio):
     #     class_dict = collections.Counter(self.targets)
@@ -129,19 +129,36 @@ class DatasetFolder(VisionDataset):
     #     self.samples = samples
     #     self.targets = targets
 
-    def _sample_class_ratio(self, class_num, ratio):
+    # def _sample_class_ratio(self, class_num, ratio):
+    #     class_dict = collections.Counter(self.targets)
+    #     samples = []
+    #     targets = []
+    #     total_nums = [0 for _ in range(1000)]
+    #     for sample, target in self.samples:
+    #         if target < class_num and \
+    #             total_nums[target] < class_dict[target] * ratio:
+    #             samples.append((sample, target))
+    #             targets.append(target)
+    #             total_nums[target] += 1
+    #     self.samples = samples
+    #     self.targets = targets
+
+    def _sample_class_ratio(self, class_num, ratio, flag, split):
         class_dict = collections.Counter(self.targets)
-        samples = []
-        targets = []
-        total_nums = [0 for _ in range(1000)]
+        totals = [{'train':[], 'val':[], 'nums':0} for _ in range(1000)]
         for sample, target in self.samples:
-            if target < class_num and \
-                total_nums[target] < class_dict[target] * ratio:
-                samples.append((sample, target))
-                targets.append(target)
-                total_nums[target] += 1
-        self.samples = samples
-        self.targets = targets
+            if target < class_num:
+                if totals[target]['nums'] < class_dict[target] * ratio * split: # train
+                    totals[target]['train'].append((sample, target))
+                elif totals[target]['nums'] < class_dict[target] * ratio: # val
+                    totals[target]['val'].append((sample, target))
+                totals[target]['nums'] += 1
+        
+        self.samples = []
+        for dataset_dict in totals:
+            if dataset_dict['nums'] > 0:
+                self.samples = self.samples + dataset_dict[flag]
+        self.targets = [s[1] for s in self.samples]
 
     def _find_classes(self, dir):
         """
@@ -241,10 +258,11 @@ class ImageFolder(DatasetFolder):
     """
 
     def __init__(self, root, transform=None, target_transform=None,
-                 loader=default_loader, is_valid_file=None, class_num=1000, ratio=1.0):
+                 loader=default_loader, is_valid_file=None, class_num=1000, ratio=1.0, flag='train', split=1.0):
         super(ImageFolder, self).__init__(root, loader, IMG_EXTENSIONS if is_valid_file is None else None,
                                           transform=transform,
                                           target_transform=target_transform,
                                           is_valid_file=is_valid_file, 
-                                          class_num=class_num, ratio=ratio)
+                                          class_num=class_num, ratio=ratio, 
+                                          flag=flag, split=split)
         self.imgs = self.samples

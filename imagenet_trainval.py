@@ -249,7 +249,7 @@ def main_worker(gpu, ngpus_per_node, args):
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
-        ]), class_num=100, ratio=1.0, flag='train', split=1.0)
+        ]), class_num=10, ratio=1.0, flag='train', split=0.5)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -260,18 +260,36 @@ def main_worker(gpu, ngpus_per_node, args):
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
+    val_dataset = ImageFolder(
+        traindir,
+        transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+        ]), class_num=10, ratio=1.0, flag='val', split=0.5)
+
+    if args.distributed:
+        val_sampler = torch.utils.data.distributed.DistributedSampler(val_dataset)
+    else:
+        val_sampler = None
+
     val_loader = torch.utils.data.DataLoader(
+        val_dataset, batch_size=args.batch_size, shuffle=(val_sampler is None),
+        num_workers=args.workers, pin_memory=True, sampler=val_sampler)
+
+    test_loader = torch.utils.data.DataLoader(
         ImageFolder(valdir, transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             normalize,
-        ]), class_num=100, ratio=1.0),
+        ]), class_num=10, ratio=1.0),
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
-        validate(val_loader, model, criterion, args)
+        validate(test_loader, model, criterion, args)
         return
 
     for epoch in range(args.start_epoch, args.epochs):

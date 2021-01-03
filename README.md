@@ -38,6 +38,17 @@ CUDA_VISIBLE_DEVICES=4 python imagenet.py -a resnet50 -b 64 --pretrained /mnt/da
 bash ddp.sh 0,1,2,3 256
 ```
 
+## Train mobilenet in depth & width level
+```
+bash ddp.sh 0,1,2,3,4,5,6,7 d4 6789 /home/dataset/imagenet
+```
+
+## Train & Val dataset
+```
+# see imagenet_trainval.py Lines 245,263
+# see image_folder Lines 146
+```
+
 ## Accuracy
 | Model             | Acc.        |
 | ----------------- | ----------- |
