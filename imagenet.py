@@ -23,6 +23,7 @@ from image_folder import ImageFolder
 from models.my_mobilenet.derived_imagenet_net import ImageNetModel
 from models.my_mobilenet.param_remap import remap_for_paramadapt
 from models.my_mobilenet import configs
+from tensorboardX import SummaryWriter
 
 def seed_torch(seed):
     random.seed(seed)
@@ -166,6 +167,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
         net_config=getattr(configs, '{}_config'.format(args.arch)), 
         num_classes=100)
+    writer = SummaryWriter('runs/{}'.format(args.arch))
     if args.pretrained:
         state_dict = remap_for_paramadapt(
             load_path='checkpoint/model_best.pth.tar', 
@@ -280,10 +282,10 @@ def main_worker(gpu, ngpus_per_node, args):
         adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, args)
+        train(train_loader, model, criterion, optimizer, epoch, args, writer)
 
         # evaluate on validation set
-        acc1 = validate(val_loader, model, criterion, args)
+        acc1 = validate(val_loader, model, criterion, args, writer, epoch)
 
         # remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
@@ -300,7 +302,7 @@ def main_worker(gpu, ngpus_per_node, args):
             }, is_best, args.arch)
 
 
-def train(train_loader, model, criterion, optimizer, epoch, args):
+def train(train_loader, model, criterion, optimizer, epoch, args, writer):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -345,9 +347,12 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         if i % args.print_freq == 0:
             progress.display(i)
+            
+    writer.add_scalar('training loss', losses.avg, epoch)
+    writer.add_scalar('training acc1', top1.avg, epoch)
+    writer.add_scalar('training acc5', top1.avg, epcoh)
 
-
-def validate(val_loader, model, criterion, args):
+def validate(val_loader, model, criterion, args, writer, epoch):
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
@@ -388,6 +393,10 @@ def validate(val_loader, model, criterion, args):
         # TODO: this should also be done with the ProgressMeter
         print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(top1=top1, top5=top5))
+
+        writer.add_scalar('eval loss', losses.avg, epoch)
+        writer.add_scalar('eval acc1', top1.avg, epoch)
+        writer.add_scalar('eval acc5', top5.avg, epoch)
 
     return top1.avg
 
