@@ -103,6 +103,7 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'multi node data parallel training')
 
 best_acc1 = 0
+global_training_steps = 0
 
 
 def main():
@@ -167,7 +168,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
         net_config=getattr(configs, '{}_config'.format(args.arch)), 
         num_classes=100)
-    writer = SummaryWriter('runs/{}'.format(args.arch))
+    writer = SummaryWriter('runs/{}-{}'.format(args.arch, args.lr))
     if args.pretrained:
         state_dict = remap_for_paramadapt(
             load_path='checkpoint/model_best.pth.tar', 
@@ -317,6 +318,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, writer):
     model.train()
 
     end = time.time()
+    global global_training_steps
     for i, (images, target) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
@@ -347,7 +349,10 @@ def train(train_loader, model, criterion, optimizer, epoch, args, writer):
 
         if i % args.print_freq == 0:
             progress.display(i)
-            
+        
+        writer.add_scalar('training iter loss', loss.item(), global_training_steps)
+        global_training_steps += 1
+
     writer.add_scalar('training loss', losses.avg, epoch)
     writer.add_scalar('training acc1', top1.avg, epoch)
     writer.add_scalar('training acc5', top1.avg, epcoh)
