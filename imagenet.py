@@ -355,7 +355,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, writer):
 
     writer.add_scalar('training loss', losses.avg, epoch)
     writer.add_scalar('training acc1', top1.avg, epoch)
-    writer.add_scalar('training acc5', top1.avg, epcoh)
+    writer.add_scalar('training acc5', top1.avg, epoch)
 
 def validate(val_loader, model, criterion, args, writer, epoch):
     batch_time = AverageMeter('Time', ':6.3f')
