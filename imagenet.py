@@ -168,7 +168,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
         net_config=getattr(configs, '{}_config'.format(args.arch)), 
         num_classes=100)
-    writer = SummaryWriter('test/{}-{}'.format(args.arch, args.lr))
+    writer = SummaryWriter('runs/{}-{}'.format(args.arch, args.lr))
     if args.pretrained:
         state_dict = remap_for_paramadapt(
             load_path='checkpoint/model_best.pth.tar', 
