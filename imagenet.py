@@ -168,7 +168,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
         net_config=getattr(configs, '{}_config'.format(args.arch)), 
         num_classes=100)
-    writer = SummaryWriter('runs/{}-{}'.format(args.arch, args.lr))
+    writer = SummaryWriter('test/{}-{}'.format(args.arch, args.lr))
     if args.pretrained:
         state_dict = remap_for_paramadapt(
             load_path='checkpoint/model_best.pth.tar', 
@@ -176,6 +176,7 @@ def main_worker(gpu, ngpus_per_node, args):
             seed_num_layers=[1, 1, 2, 3, 4, 3, 3, 1, 1])
         model.load_state_dict(state_dict)
         print('success remap_for_paramadapt')
+        writer = SummaryWriter('runs/{}-{}-pretrained'.format(args.arch, args.lr))
 
     if not torch.cuda.is_available():
         print('using CPU, this will be slow')

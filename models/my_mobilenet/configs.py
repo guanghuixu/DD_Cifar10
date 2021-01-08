@@ -30,7 +30,7 @@ retinanet_config = """
 
 # expand the depth level
 d2_config = """
-[[32, 16], ['k3_e1'], 1]|
+[[32, 16], ['k3_e1', 'k3_e1'], 1]|
 [[16, 24], ['k3_e6', 'k3_e6', 'skip', 'skip','k3_e6', 'k3_e6', 'skip', 'skip'], 2]|
 [[24, 32], ['k3_e6', 'k3_e6', 'k3_e6', 'skip', 'k3_e6', 'k3_e6', 'k3_e6', 'skip'], 2]|
 [[32, 64], ['k3_e6', 'k3_e6', 'k3_e6', 'k3_e6', 'k3_e6', 'k3_e6', 'k3_e6', 'k3_e6'], 2]|
