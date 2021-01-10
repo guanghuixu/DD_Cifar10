@@ -168,15 +168,22 @@ def main_worker(gpu, ngpus_per_node, args):
         # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
         net_config=getattr(configs, '{}_config'.format(args.arch)), 
         num_classes=100)
-    writer = SummaryWriter('runs/{}-{}'.format(args.arch, args.lr))
     if args.pretrained:
         state_dict = remap_for_paramadapt(
             load_path='checkpoint/model_best.pth.tar', 
             model_dict=model.state_dict(), 
             seed_num_layers=[1, 1, 2, 3, 4, 3, 3, 1, 1])
-        model.load_state_dict(state_dict)
+        model_dict = model.state_dict()
+        for key, value in model_dict.items():
+            model_dict[key] = torch.zeros_like(value)
+        model_dict.update(state_dict)
+        model.load_state_dict(model_dict)
         print('success remap_for_paramadapt')
-        writer = SummaryWriter('runs/{}-{}-pretrained'.format(args.arch, args.lr))
+        writer = SummaryWriter('runs/{}-pretrained/{}'.format(args.lr, args.arch))
+    else:
+        writer = SummaryWriter('runs/{}/{}'.format(args.lr, args.arch))
+        if not os.path.exists('checkpoint'):
+            os.mkdir('checkpoint')
 
     if not torch.cuda.is_available():
         print('using CPU, this will be slow')
