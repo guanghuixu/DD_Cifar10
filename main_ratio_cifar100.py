@@ -67,7 +67,7 @@ valset = CIFAR100(
     root='./cifar100', train=True, download=True, transform=transform_train,
     class_num=3, ratio=1.0, split=0.7, flag='val')
 testset = CIFAR100(
-    root='./cifar100', train=True, download=True, transform=transform_train,
+    root='./cifar100', train=True, download=True, transform=transform_test,
     class_num=3, ratio=1.0, split=1.0, flag='test')
 
 trainloader = torch.utils.data.DataLoader(
