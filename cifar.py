@@ -15,6 +15,7 @@ from torchvision.datasets.utils import check_integrity, download_and_extract_arc
 import random
 import numpy as np
 import torch
+import collections
 
 def construct_meta_dataset(dataset, meta_num=100, class_num=10):
     each_num = meta_num // class_num
@@ -75,7 +76,7 @@ class CIFAR10(VisionDataset):
     }
 
     def __init__(self, root, train=True, transform=None, target_transform=None,
-                 download=False, ratio=1.0):
+                 download=False, class_num=100, ratio=1.0, split=1.0, flag='train'):
 
         super(CIFAR10, self).__init__(root, transform=transform,
                                       target_transform=target_transform)
@@ -111,19 +112,46 @@ class CIFAR10(VisionDataset):
                 else:
                     self.targets.extend(entry['fine_labels'])
 
+        if class_num<100 or ratio<1.0:
+            self._sample_class_ratio(class_num, ratio, flag, split)
+
+
         self.data = np.vstack(self.data).reshape(-1, 3, 32, 32)
         self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
 
-        # sample items based on the ratio
-        random_idx = np.arange(len(self.targets))
-        random.shuffle(random_idx)
-        self.data = self.data[random_idx]
-        self.targets = [self.targets[random_id] for random_id in random_idx]
-        num = int(len(random_idx) * ratio)
-        self.data = self.data[:num]
-        self.targets = self.targets[:num]
+        # # sample items based on the ratio
+        # random_idx = np.arange(len(self.targets))
+        # random.shuffle(random_idx)
+        # self.data = self.data[random_idx]
+        # self.targets = [self.targets[random_id] for random_id in random_idx]
+        # num = int(len(random_idx) * ratio)
+        # self.data = self.data[:num]
+        # self.targets = self.targets[:num]
 
         self._load_meta()
+
+    def _sample_class_ratio(self, class_num, ratio, flag, split):
+        class_dict = collections.Counter(self.targets)
+        totals = [{'train':[], 'val':[], 'test':[], 'nums':0} for _ in range(100)]
+        for idx, target in enumerate(self.targets):
+            if target < class_num:
+                cur_samples = totals[target]['nums']
+                data = self.data[0][idx]
+                if flag == 'test' and cur_samples < class_dict[target] * ratio:   # test
+                    totals[target]['test'].append(data)
+                elif cur_samples < class_dict[target] * ratio * split: # train
+                    totals[target]['train'].append(data)
+                elif cur_samples < class_dict[target] * ratio: # val
+                    totals[target]['val'].append(data)
+                
+                totals[target]['nums'] += 1
+        
+        self.data = []
+        self.targets = []
+        for i, dataset_dict in enumerate(totals):
+            if dataset_dict['nums'] > 0:
+                self.data = self.data + dataset_dict[flag]
+                self.targets.extend([i for _ in range(len(dataset_dict[flag]))])
 
     def _load_meta(self):
         path = os.path.join(self.root, self.base_folder, self.meta['filename'])

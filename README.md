@@ -49,6 +49,25 @@ bash ddp.sh 0,1,2,3,4,5,6,7 d4 6789 /home/dataset/imagenet
 # see image_folder Lines 146
 ```
 
+## CIFAR100 Train & Val dataset
+```
+# see main_ratio_cifar100.py Lines 63-71
+# see cifar.py Lines 133
+# class_num=3, ratio=1.0, split=0.7, flag='val'
+# 取前3类，ratio是指是否使用完整数据集，如0.5表示只使用完整数据集中的一半来划分train/val
+# 在ratio的基础上，前70%为train，后30%为val
+
+trainset = CIFAR100(
+    root='./cifar100', train=True, download=True, transform=transform_train,
+    class_num=3, ratio=1.0, split=0.7, flag='train')
+valset = CIFAR100(
+    root='./cifar100', train=True, download=True, transform=transform_train,
+    class_num=3, ratio=1.0, split=0.7, flag='val')
+testset = CIFAR100(
+    root='./cifar100', train=True, download=True, transform=transform_train,
+    class_num=3, ratio=1.0, split=1.0, flag='test')
+```
+
 ## Accuracy
 | Model             | Acc.        |
 | ----------------- | ----------- |
