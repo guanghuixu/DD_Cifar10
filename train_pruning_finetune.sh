@@ -1,8 +1,8 @@
 CUDA_VISIBLE_DEVICES=$1 python imagenet.py -a $3 --lr 0.1 --n_classes $5 --ratio $6 \
-    --dist-url 'tcp://127.0.0.1:'$2 --epochs 1 --dist-backend 'nccl' --multiprocessing-distributed \
+    --dist-url 'tcp://127.0.0.1:'$2 --dist-backend 'nccl' --multiprocessing-distributed \
     --world-size 1 --rank 0 $8
 CUDA_VISIBLE_DEVICES=$1 python imagenet_den.py -a $3 --lr $4 --n_classes $5 --ratio $6 \
-    --pruning_amount $7 --pretrained --epochs 1 --evaluate --resume checkpoint/$2-$4-$5_model_best_train.pth.tar \ 
+    --pruning_amount $7 --pretrained --evaluate --resume checkpoint/$3-$5-$6_model_best_train.pth.tar \
     --dist-url 'tcp://127.0.0.1:'$2 --dist-backend 'nccl' \
     --multiprocessing-distributed --world-size 1 --rank 0 $8
 
