@@ -72,12 +72,13 @@ CUDA_VISIBLE_DEVICES=$1 python imagenet_den.py -a $2 --lr $3 --n_classes $4 --ra
 bash ddp_den.sh 4,5,6,7 mobilenet15 0.1 100 1.0 0.1 6789 /home/dataset/imagenet "--pretrained --evaluate --resume checkpoint/mobilenet15-100-1.0_model_best.pth.tar"
 ```
 
+## Training & Pruning & Finetune
+```
+bash train_pruning_finetune.sh 4,5,6,7 mobilenet 0.1 100 1.0 6789 0.7 /home/dataset/imagenet
+```
+
 ## exp about ratio, keep n_classes=100
-| ratio             | pruning_amount        |
-| ----------------- | ----------- |
-| 0.1               |    0.6       |
-| 0.2               |    0.5       |
-| 0.3               |    0.3       |
-| 0.4               |    0.2       |
-| 0.5               |    0.1       |
+| ratio             | pruning_amount    | scripts           |
+| ----------------- | ----------------- | ----------------- |
+| 0.1               |    0.6            | bash |
 

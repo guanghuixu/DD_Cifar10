@@ -25,6 +25,8 @@ from models.my_mobilenet.param_remap import remap_for_paramadapt
 from models.my_mobilenet import configs
 from tensorboardX import SummaryWriter
 
+from DEN.mobilenet import BaseMobileNetV2
+
 def seed_torch(seed):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed) 
@@ -76,8 +78,8 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
 parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)',
                     dest='weight_decay')
-parser.add_argument('-p', '--print-freq', default=10, type=int,
-                    metavar='N', help='print frequency (default: 10)')
+parser.add_argument('-p', '--print_freq', default=10, type=int,
+                    metavar='N', help='print_txt( frequency (default: 10)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
@@ -102,8 +104,23 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
 
+parser.add_argument('--n_classes', default=100, type=int,
+                    help='the number of sampled classes')
+parser.add_argument('--pruning_amount', default=0.7, type=float, 
+                    help='pruning amount')
+parser.add_argument('--ratio', default=1.0, type=float, 
+                    help='the number of sampled classes')
+
 best_acc1 = 0
 global_training_steps = 0
+writer_txt = None
+
+def print_txt(str_txt):
+    print(str_txt)
+    global writer_txt
+    if writer_txt is not None:
+        with open(writer_txt, 'a+') as f:
+            f.writelines(str_txt)
 
 
 def main():
@@ -146,7 +163,7 @@ def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
 
     if args.gpu is not None:
-        print("Use GPU: {} for training".format(args.gpu))
+        print_txt("Use GPU: {} for training".format(args.gpu))
 
     if args.distributed:
         if args.dist_url == "env://" and args.rank == -1:
@@ -158,17 +175,20 @@ def main_worker(gpu, ngpus_per_node, args):
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
     # create model
-    if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
-    else:
-        print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch]()
+    # if args.pretrained:
+    #     print_txt("=> using pre-trained model '{}'".format(args.arch))
+    #     model = models.__dict__[args.arch](pretrained=True)
+    # else:
+    #     print_txt("=> creating model '{}'".format(args.arch))
+    #     model = models.__dict__[args.arch]()
     # model = ImageNetModel(
     #     # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
     #     net_config=getattr(configs, '{}_config'.format(args.arch)), 
     #     num_classes=100)
-    model = models.__dict__[args.arch](num_classes=1000)
+    # model = models.__dict__[args.arch](num_classes=100)
+    model = BaseMobileNetV2(n_class=100, width_mult=1.5)
+    if not os.path.exists('checkpoint'):
+        os.mkdir('checkpoint')
     if args.pretrained:
         state_dict = remap_for_paramadapt(
             load_path='checkpoint/model_best.pth.tar', 
@@ -179,15 +199,16 @@ def main_worker(gpu, ngpus_per_node, args):
             model_dict[key] = torch.zeros_like(value)
         model_dict.update(state_dict)
         model.load_state_dict(model_dict)
-        print('success remap_for_paramadapt')
-        writer = SummaryWriter('runs/{}-pretrained/{}'.format(args.lr, args.arch))
+        print_txt('success remap_for_paramadapt')
+        writer_dir = 'runs/{}-pretrained/{}'.format(args.lr, args.arch)
     else:
-        writer = SummaryWriter('runs/{}/{}'.format(args.lr, args.arch))
-        if not os.path.exists('checkpoint'):
-            os.mkdir('checkpoint')
+        writer_dir = 'runs/{}/{}'.format(args.lr, args.arch)
+    writer = SummaryWriter(writer_dir)
+    global writer_txt
+    writer_txt = '{}/log.txt'.format(writer_dir)
 
     if not torch.cuda.is_available():
-        print('using CPU, this will be slow')
+        print_txt('using CPU, this will be slow')
     elif args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
@@ -227,7 +248,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
+            print_txt("=> loading checkpoint '{}'".format(args.resume))
             if args.gpu is None:
                 checkpoint = torch.load(args.resume)
             else:
@@ -241,10 +262,10 @@ def main_worker(gpu, ngpus_per_node, args):
                 best_acc1 = best_acc1.to(args.gpu)
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
-            print("=> loaded checkpoint '{}' (epoch {})"
+            print_txt("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+            print_txt("=> no checkpoint found at '{}'".format(args.resume))
 
     cudnn.benchmark = True
 
@@ -261,7 +282,7 @@ def main_worker(gpu, ngpus_per_node, args):
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
-        ]), class_num=100, ratio=1.0, flag='train', split=1.0)
+        ]), class_num=args.n_classes, ratio=args.ratio, flag='train', split=1.0)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -278,7 +299,7 @@ def main_worker(gpu, ngpus_per_node, args):
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             normalize,
-        ]), class_num=100, ratio=1.0),
+        ]), class_num=args.n_classes, ratio=args.ratio),
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
@@ -309,7 +330,8 @@ def main_worker(gpu, ngpus_per_node, args):
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
                 'optimizer' : optimizer.state_dict(),
-            }, is_best, args.arch)
+            }, is_best, 
+            filename='{}-{}-{}_checkpoint_train.pth.tar'.format(args.arch, args.n_classes, args.ratio))
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args, writer):
@@ -338,7 +360,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, writer):
             target = target.cuda(args.gpu, non_blocking=True)
 
         # compute output
-        output = model(images)
+        _, output = model(images)
         loss = criterion(output, target)
 
         # measure accuracy and record loss
@@ -388,7 +410,7 @@ def validate(val_loader, model, criterion, args, writer, epoch):
                 target = target.cuda(args.gpu, non_blocking=True)
 
             # compute output
-            output = model(images)
+            _, output = model(images)
             loss = criterion(output, target)
 
             # measure accuracy and record loss
@@ -405,7 +427,7 @@ def validate(val_loader, model, criterion, args, writer, epoch):
                 progress.display(i)
 
         # TODO: this should also be done with the ProgressMeter
-        print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
+        print_txt(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(top1=top1, top5=top5))
 
         writer.add_scalar('eval loss', losses.avg, epoch)
@@ -415,11 +437,10 @@ def validate(val_loader, model, criterion, args, writer, epoch):
     return top1.avg
 
 
-def save_checkpoint(state, is_best, arch):
-    filename='checkpoint/{}_checkpoint.pth.tar'.format(arch)
-    torch.save(state, filename)
+def save_checkpoint(state, is_best, filename):
+    torch.save(state, 'checkpoint/{}'.format(filename))
     if is_best:
-        shutil.copyfile(filename, 'checkpoint/{}_model_best.pth.tar'.format(arch))
+        shutil.copyfile('checkpoint/{}'.format(filename), 'checkpoint/{}'.format(filename.replace('checkpoint', 'model_best')))
 
 
 class AverageMeter(object):
@@ -455,7 +476,7 @@ class ProgressMeter(object):
     def display(self, batch):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
-        print('\t'.join(entries))
+        print_txt('\t'.join(entries))
 
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))

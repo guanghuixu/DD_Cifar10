@@ -112,6 +112,14 @@ parser.add_argument('--ratio', default=1.0, type=float,
 
 best_acc1 = 0
 global_training_steps = 0
+writer_txt = None
+
+def print_txt(str_txt):
+    print(str_txt)
+    global writer_txt
+    if writer_txt is not None:
+        with open(writer_txt, 'a+') as f:
+            f.writelines(str_txt)
 
 
 def main():
@@ -159,7 +167,7 @@ def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
 
     if args.gpu is not None:
-        print("Use GPU: {} for training".format(args.gpu))
+        print_txt("Use GPU: {} for training".format(args.gpu))
 
     if args.distributed:
         if args.dist_url == "env://" and args.rank == -1:
@@ -172,17 +180,19 @@ def main_worker(gpu, ngpus_per_node, args):
                                 world_size=args.world_size, rank=args.rank)
     # create model
     # if args.pretrained:
-    #     print("=> using pre-trained model '{}'".format(args.arch))
+    #     print_txt("=> using pre-trained model '{}'".format(args.arch))
     #     model = models.__dict__[args.arch](pretrained=True)
     # else:
-    #     print("=> creating model '{}'".format(args.arch))
+    #     print_txt("=> creating model '{}'".format(args.arch))
     #     model = models.__dict__[args.arch]()
     # seed_model = ImageNetModel(
     #     net_config=getattr(configs, '{}_config'.format(args.arch)), 
     #     num_classes=100)
     seed_model = BaseMobileNetV2(n_class=100, width_mult=1.5)
     flops, params = MADDs_Params(seed_model)
-    print('Seed Model: MADDs {} M, Params {} M'.format(flops, params))
+    print_txt('Seed Model: MADDs {} M, Params {} M'.format(flops, params))
+    if not os.path.exists('checkpoint'):
+        os.mkdir('checkpoint')
     if args.pretrained:
         seed_dict = torch.load(args.resume, map_location='cpu')
         if 'state_dict' in seed_dict.keys():
@@ -191,19 +201,22 @@ def main_worker(gpu, ngpus_per_node, args):
             seed_dict = seed_dict['model']
         if list(seed_dict.keys())[0].startswith('module.'):
             seed_dict = {k[7:]: v for k, v in seed_dict.items()}
-        seed_model.load_state_dict(seed_dict)
-        print('success reload the parameters')
-        writer = SummaryWriter('runs/{}-pretrained/{}'.format(args.lr, args.arch))
+        model_dict = seed_model.state_dict()
+        model_dict.update(seed_dict)
+        seed_model.load_state_dict(model_dict)
+        print_txt('success reload the parameters')
+        writer_dir = 'runs/{}-pretrained/{}'.format(args.lr, args.arch)
     else:
-        writer = SummaryWriter('runs/{}/{}'.format(args.lr, args.arch))
-        if not os.path.exists('checkpoint'):
-            os.mkdir('checkpoint')
+        writer_dir = 'runs/{}/{}'.format(args.lr, args.arch)
+    writer = SummaryWriter(writer_dir)
+    global writer_txt
+    writer_txt = '{}/log.txt'.format(writer_dir)
     model = pruning_model(seed_model, amount=args.pruning_amount, ln=2, dim=0)
     flops, params = MADDs_Params(model)
-    print('Pruning Model: MADDs {} M, Params {} M'.format(flops, params))
+    print_txt('Pruning Model: MADDs {} M, Params {} M'.format(flops, params))
 
     if not torch.cuda.is_available():
-        print('using CPU, this will be slow')
+        print_txt('using CPU, this will be slow')
     elif args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
@@ -243,7 +256,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # optionally resume from a checkpoint
     # if args.resume:
     #     if os.path.isfile(args.resume):
-    #         print("=> loading checkpoint '{}'".format(args.resume))
+    #         print_txt("=> loading checkpoint '{}'".format(args.resume))
     #         if args.gpu is None:
     #             checkpoint = torch.load(args.resume)
     #         else:
@@ -257,10 +270,10 @@ def main_worker(gpu, ngpus_per_node, args):
     #             best_acc1 = best_acc1.to(args.gpu)
     #         model.load_state_dict(checkpoint['state_dict'])
     #         optimizer.load_state_dict(checkpoint['optimizer'])
-    #         print("=> loaded checkpoint '{}' (epoch {})"
+    #         print_txt("=> loaded checkpoint '{}' (epoch {})"
     #               .format(args.resume, checkpoint['epoch']))
     #     else:
-    #         print("=> no checkpoint found at '{}'".format(args.resume))
+    #         print_txt("=> no checkpoint found at '{}'".format(args.resume))
 
     cudnn.benchmark = True
 
@@ -326,7 +339,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'best_acc1': best_acc1,
                 'optimizer' : optimizer.state_dict(),
             }, is_best, 
-            filename='{}-{}-{}_checkpoint.pth.tar'.format(args.arch, args.n_classes, args.ratio))
+            filename='{}-{}-{}_checkpoint_finetune.pth.tar'.format(args.arch, args.n_classes, args.ratio))
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args, writer):
@@ -422,7 +435,7 @@ def validate(val_loader, model, criterion, args, writer, epoch):
                 progress.display(i)
 
         # TODO: this should also be done with the ProgressMeter
-        print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
+        print_txt(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(top1=top1, top5=top5))
 
         writer.add_scalar('eval loss', losses.avg, epoch)
@@ -470,7 +483,7 @@ class ProgressMeter(object):
     def display(self, batch):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
-        print('\t'.join(entries))
+        print_txt('\t'.join(entries))
 
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))
