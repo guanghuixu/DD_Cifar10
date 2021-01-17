@@ -60,7 +60,7 @@ parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
                         ' (default: resnet18)')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N',
+parser.add_argument('--epochs', default=100, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -158,16 +158,17 @@ def main_worker(gpu, ngpus_per_node, args):
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
     # create model
-    # if args.pretrained:
-    #     print("=> using pre-trained model '{}'".format(args.arch))
-    #     model = models.__dict__[args.arch](pretrained=True)
-    # else:
-    #     print("=> creating model '{}'".format(args.arch))
-    #     model = models.__dict__[args.arch]()
-    model = ImageNetModel(
-        # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
-        net_config=getattr(configs, '{}_config'.format(args.arch)), 
-        num_classes=100)
+    if args.pretrained:
+        print("=> using pre-trained model '{}'".format(args.arch))
+        model = models.__dict__[args.arch](pretrained=True)
+    else:
+        print("=> creating model '{}'".format(args.arch))
+        model = models.__dict__[args.arch]()
+    # model = ImageNetModel(
+    #     # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
+    #     net_config=getattr(configs, '{}_config'.format(args.arch)), 
+    #     num_classes=100)
+    model = models.__dict__[args.arch](num_classes=1000)
     if args.pretrained:
         state_dict = remap_for_paramadapt(
             load_path='checkpoint/model_best.pth.tar', 
@@ -464,7 +465,13 @@ class ProgressMeter(object):
 
 def adjust_learning_rate(optimizer, epoch, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // 30))
+    # lr = args.lr * (0.1 ** (epoch // 30))
+    if epoch < 80:
+        lr = args.lr
+    elif epoch < 130:
+        lr = args.lr * 0.1
+    else:
+        lr = args.lr * 0.01
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 

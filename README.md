@@ -49,21 +49,35 @@ bash ddp.sh 0,1,2,3,4,5,6,7 d4 6789 /home/dataset/imagenet
 # see image_folder Lines 146
 ```
 
-## Accuracy
-| Model             | Acc.        |
+## Train ResNet18
+```
+# see ddp.sh
+bash ddp.sh 4,5,6,7 resnet18 0.1 6790 /home/dataset/imagenet
+```
+
+## Training from pruning model
+```
+CUDA_VISIBLE_DEVICES=$1 python imagenet_den.py -a $2 --lr $3 --n_classes $4 --ratio $5 --pruning_amount $6 $9 --dist-url 'tcp://127.0.0.1:'$7 --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0 $8
+
+1. GPUs: 4,5,6,7
+2. Arch: mobilenet15
+3. lr: 0.1
+4. number of classes: 100 (imagenet)
+5. sample ratio of dataset: 1.0
+6. pruning_amount: 0.7, each layer pruning 70% units
+7. port: 6789 or 6890
+8. imagenet dir: /home/dataset/imagenet
+9. other params: "--pretrained --evaluate --resume checkpoint/mobilenet15-100-1.0_model_best.pth.tar"
+
+bash ddp_den.sh 4,5,6,7 mobilenet15 0.1 100 1.0 0.1 6789 /home/dataset/imagenet "--pretrained --evaluate --resume checkpoint/mobilenet15-100-1.0_model_best.pth.tar"
+```
+
+## exp about ratio, keep n_classes=100
+| ratio             | pruning_amount        |
 | ----------------- | ----------- |
-| [VGG16](https://arxiv.org/abs/1409.1556)              | 92.64%      |
-| [ResNet18](https://arxiv.org/abs/1512.03385)          | 93.02%      |
-| [ResNet50](https://arxiv.org/abs/1512.03385)          | 93.62%      |
-| [ResNet101](https://arxiv.org/abs/1512.03385)         | 93.75%      |
-| [RegNetX_200MF](https://arxiv.org/abs/2003.13678)     | 94.24%      |
-| [RegNetY_400MF](https://arxiv.org/abs/2003.13678)     | 94.29%      |
-| [MobileNetV2](https://arxiv.org/abs/1801.04381)       | 94.43%      |
-| [ResNeXt29(32x4d)](https://arxiv.org/abs/1611.05431)  | 94.73%      |
-| [ResNeXt29(2x64d)](https://arxiv.org/abs/1611.05431)  | 94.82%      |
-| [SimpleDLA](https://arxiv.org/abs/1707.064)           | 94.89%      |
-| [DenseNet121](https://arxiv.org/abs/1608.06993)       | 95.04%      |
-| [PreActResNet18](https://arxiv.org/abs/1603.05027)    | 95.11%      |
-| [DPN92](https://arxiv.org/abs/1707.01629)             | 95.16%      |
-| [DLA](https://arxiv.org/abs/1707.064)                 | 95.47%      |
+| 0.1               |    0.6       |
+| 0.2               |    0.5       |
+| 0.3               |    0.3       |
+| 0.4               |    0.2       |
+| 0.5               |    0.1       |
 
