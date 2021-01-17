@@ -74,11 +74,19 @@ bash ddp_den.sh 4,5,6,7 mobilenet15 0.1 100 1.0 0.1 6789 /home/dataset/imagenet 
 
 ## Training & Pruning & Finetune
 ```
-bash train_pruning_finetune.sh 4,5,6,7 mobilenet 0.1 100 1.0 6789 0.7 /home/dataset/imagenet
+bash train_pruning_finetune.sh 4,5,6,7 6789 mobilenet 0.1 100 0.1 0.6 /home/dataset/imagenet
 ```
 
 ## exp about ratio, keep n_classes=100
+pruning_amount =  1 - (0.5 + ratio) / 1.5
 | ratio             | pruning_amount    | scripts           |
 | ----------------- | ----------------- | ----------------- |
-| 0.1               |    0.6            | bash |
+| 0.1               |    0.6            | bash train_pruning_finetune.sh 4,5,6,7 6789 mobilenet 0.1 100 0.1 0.6 /home/dataset/imagenet |
+
+## exp about n_classes, keep ratio=1.0
+pruning_amount =  1 - (0.5 + n_classes // 100) / 1.5
+| n_classes         | pruning_amount    | scripts           |
+| ----------------- | ----------------- | ----------------- |
+| 20                |    0.53            | bash train_pruning_finetune.sh 4,5,6,7 6789 mobilenet 0.1 20 1.0 0.53 /home/dataset/imagenet |
+
 

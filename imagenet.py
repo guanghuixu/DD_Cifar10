@@ -120,7 +120,7 @@ def print_txt(str_txt):
     global writer_txt
     if writer_txt is not None:
         with open(writer_txt, 'a+') as f:
-            f.writelines(str_txt)
+            f.writelines(str_txt+'\n')
 
 
 def main():
@@ -189,6 +189,10 @@ def main_worker(gpu, ngpus_per_node, args):
     model = BaseMobileNetV2(n_class=100, width_mult=1.5)
     if not os.path.exists('checkpoint'):
         os.mkdir('checkpoint')
+    writer_dir = 'runs/{}/{}-{}-{}'.format(args.lr, args.arch, args.n_classes, args.ratio)
+    writer = SummaryWriter(writer_dir)
+    global writer_txt
+    writer_txt = '{}/log.txt'.format(writer_dir)
     if args.pretrained:
         state_dict = remap_for_paramadapt(
             load_path='checkpoint/model_best.pth.tar', 
@@ -200,12 +204,6 @@ def main_worker(gpu, ngpus_per_node, args):
         model_dict.update(state_dict)
         model.load_state_dict(model_dict)
         print_txt('success remap_for_paramadapt')
-        writer_dir = 'runs/{}-pretrained/{}'.format(args.lr, args.arch)
-    else:
-        writer_dir = 'runs/{}/{}'.format(args.lr, args.arch)
-    writer = SummaryWriter(writer_dir)
-    global writer_txt
-    writer_txt = '{}/log.txt'.format(writer_dir)
 
     if not torch.cuda.is_available():
         print_txt('using CPU, this will be slow')

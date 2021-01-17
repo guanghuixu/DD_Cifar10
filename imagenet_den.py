@@ -119,7 +119,7 @@ def print_txt(str_txt):
     global writer_txt
     if writer_txt is not None:
         with open(writer_txt, 'a+') as f:
-            f.writelines(str_txt)
+            f.writelines(str_txt + '\n')
 
 
 def main():
@@ -188,11 +188,15 @@ def main_worker(gpu, ngpus_per_node, args):
     # seed_model = ImageNetModel(
     #     net_config=getattr(configs, '{}_config'.format(args.arch)), 
     #     num_classes=100)
+    if not os.path.exists('checkpoint'):
+        os.mkdir('checkpoint')
+    writer_dir = 'runs/{}/{}-{}-{}'.format(args.lr, args.arch, args.n_classes, args.ratio)
+    writer = SummaryWriter(writer_dir)
+    global writer_txt
+    writer_txt = '{}/log.txt'.format(writer_dir)
     seed_model = BaseMobileNetV2(n_class=100, width_mult=1.5)
     flops, params = MADDs_Params(seed_model)
     print_txt('Seed Model: MADDs {} M, Params {} M'.format(flops, params))
-    if not os.path.exists('checkpoint'):
-        os.mkdir('checkpoint')
     if args.pretrained:
         seed_dict = torch.load(args.resume, map_location='cpu')
         if 'state_dict' in seed_dict.keys():
@@ -205,12 +209,6 @@ def main_worker(gpu, ngpus_per_node, args):
         model_dict.update(seed_dict)
         seed_model.load_state_dict(model_dict)
         print_txt('success reload the parameters')
-        writer_dir = 'runs/{}-pretrained/{}'.format(args.lr, args.arch)
-    else:
-        writer_dir = 'runs/{}/{}'.format(args.lr, args.arch)
-    writer = SummaryWriter(writer_dir)
-    global writer_txt
-    writer_txt = '{}/log.txt'.format(writer_dir)
     model = pruning_model(seed_model, amount=args.pruning_amount, ln=2, dim=0)
     flops, params = MADDs_Params(model)
     print_txt('Pruning Model: MADDs {} M, Params {} M'.format(flops, params))
