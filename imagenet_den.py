@@ -187,6 +187,8 @@ def main_worker(gpu, ngpus_per_node, args):
         seed_dict = torch.load(args.resume, map_location='cpu')
         if 'state_dict' in seed_dict.keys():
             seed_dict = seed_dict['state_dict']
+        if 'model' in seed_dict.keys():
+            seed_dict = seed_dict['model']
         if list(seed_dict.keys())[0].startswith('module.'):
             seed_dict = {k[7:]: v for k, v in seed_dict.items()}
         seed_model.load_state_dict(seed_dict)
@@ -298,7 +300,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.evaluate:
         validate(val_loader, model, criterion, args, writer, epoch=0)
-        return
+        # return
 
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
