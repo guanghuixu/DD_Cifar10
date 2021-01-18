@@ -137,4 +137,4 @@ def record_acc(root_name='./checkpoint'):
         file_name = os.path.join(root_name, path)
         acc = torch.load(file_name, map_location='cpu')['acc']
         print(path.replace('ResNet','').replace('_ckpt-',' ').replace('-CIFAR100.pth',''), acc)
-record_acc(root_name='./checkpoint')
+# record_acc(root_name='./checkpoint')
