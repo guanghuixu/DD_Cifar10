@@ -12,6 +12,12 @@ import torch.nn as nn
 import torch.nn.init as init
 import os
 import torch
+import shutil
+
+def save_checkpoint(state, is_best, filename):
+    torch.save(state, filename)
+    if is_best:
+        shutil.copyfile(filename, filename.replace('final', 'model_best'))
 
 def get_mean_and_std(dataset):
     '''Compute the mean and std value of dataset.'''

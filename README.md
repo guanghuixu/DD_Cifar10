@@ -78,15 +78,29 @@ bash train_pruning_finetune.sh 4,5,6,7 6789 mobilenet 0.1 100 0.1 0.6 /home/data
 ```
 
 ## exp about ratio, keep n_classes=100
-pruning_amount =  1 - (0.5 + ratio) / 1.5
-| ratio             | pruning_amount    | scripts           |
-| ----------------- | ----------------- | ----------------- |
-| 0.1               |    0.6            | bash train_pruning_finetune.sh 4,5,6,7 6789 mobilenet 0.1 100 0.1 0.6 /home/dataset/imagenet |
+pruning_amount =  1 - (new_model / 1.5)
+| ratio             | pruning_amount    | new_model        |
+| ----------------- | ----------------- | -----------------|
+| 0.1               |    0.73           |  0.4             |
+| 0.2               |    0.66           |  0.5             |
+| 0.3               |    0.60           |  0.6             |
+| 0.4               |    0.53           |  0.7             |
+| 0.5               |    0.46           |  0.8             |
+| 0.6               |    0.40           |  0.9             |
+| 0.7               |    0.33           |  1.0             |
+| 0.8               |    0.26           |  1.1             |
+| 0.9               |    0.20           |  1.2             |
+| 1.0               |    0.13           |  1.3             |
 
 ## exp about n_classes, keep ratio=1.0
-pruning_amount =  1 - (0.5 + n_classes // 100) / 1.5
-| n_classes         | pruning_amount    | scripts           |
-| ----------------- | ----------------- | ----------------- |
-| 20                |    0.53            | bash train_pruning_finetune.sh 4,5,6,7 6789 mobilenet 0.1 20 1.0 0.53 /home/dataset/imagenet |
+pruning_amount =  1 - (new_model / 1.5)
+| n_classes         | pruning_amount    | new_model        |
+| ----------------- | ----------------- | -----------------|
+| 20                |    0.66           |  0.5             |
+| 40                |    0.53           |  0.7             |
+| 80                |    0.26           |  1.1             |
+| 100               |    0.13           |  1.3             |
+| 200               |    0.06           |  1.4             |
+| 1000              |    0              |  1.5             |
 
 

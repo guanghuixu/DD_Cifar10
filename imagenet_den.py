@@ -28,6 +28,7 @@ from tensorboardX import SummaryWriter
 from DEN.mobilenet import BaseMobileNetV2
 from DEN.pruning import pruning_model
 from thop import profile
+from utils import save_checkpoint
 
 def seed_torch(seed):
     random.seed(seed)
@@ -102,10 +103,11 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'N processes per node, which has N GPUs. This is the '
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
-
+parser.add_argument('--output', default='exp', type=str, metavar='PATH',
+                    help='path to save dir (default: none)')
 parser.add_argument('--n_classes', default=100, type=int,
                     help='the number of sampled classes')
-parser.add_argument('--pruning_amount', default=0.7, type=float, 
+parser.add_argument('--pruning_amount', default=0, type=float, 
                     help='pruning amount')
 parser.add_argument('--ratio', default=1.0, type=float, 
                     help='the number of sampled classes')
@@ -188,9 +190,9 @@ def main_worker(gpu, ngpus_per_node, args):
     # seed_model = ImageNetModel(
     #     net_config=getattr(configs, '{}_config'.format(args.arch)), 
     #     num_classes=100)
-    if not os.path.exists('checkpoint'):
-        os.mkdir('checkpoint')
-    writer_dir = 'runs/{}/{}-{}-{}'.format(args.lr, args.arch, args.n_classes, args.ratio)
+    if not os.path.exists(args.output + '/checkpoint'):
+        os.makedirs(args.output + '/checkpoint')
+    writer_dir = '{}/runs/{}/{}-{}-{}'.format(args.output, args.lr, args.arch, args.n_classes, args.ratio)
     writer = SummaryWriter(writer_dir)
     global writer_txt
     writer_txt = '{}/log.txt'.format(writer_dir)
@@ -337,7 +339,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'best_acc1': best_acc1,
                 'optimizer' : optimizer.state_dict(),
             }, is_best, 
-            filename='{}-{}-{}_checkpoint_finetune.pth.tar'.format(args.arch, args.n_classes, args.ratio))
+            filename='{}/checkpoint/{}-{}-{}_final_train.pth.tar'.format(args.output, args.arch, args.n_classes, args.ratio))
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args, writer):
@@ -441,12 +443,6 @@ def validate(val_loader, model, criterion, args, writer, epoch):
         writer.add_scalar('eval acc5', top5.avg, epoch)
 
     return top1.avg
-
-
-def save_checkpoint(state, is_best, filename):
-    torch.save(state, 'checkpoint/{}'.format(filename))
-    if is_best:
-        shutil.copyfile('checkpoint/{}'.format(filename), 'checkpoint/{}'.format(filename.replace('checkpoint', 'model_best')))
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
