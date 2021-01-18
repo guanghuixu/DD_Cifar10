@@ -81,12 +81,8 @@ parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                     dest='weight_decay')
 parser.add_argument('-p', '--print_freq', default=10, type=int,
                     metavar='N', help='print_txt( frequency (default: 10)')
-parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='path to latest checkpoint (default: none)')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
-parser.add_argument('--pretrained', dest='pretrained', action='store_true',
-                    help='use pre-trained model')
 parser.add_argument('--world-size', default=-1, type=int,
                     help='number of nodes for distributed training')
 parser.add_argument('--rank', default=-1, type=int,
@@ -112,6 +108,10 @@ parser.add_argument('--pruning_amount', default=0, type=float,
                     help='pruning amount')
 parser.add_argument('--ratio', default=1.0, type=float, 
                     help='the number of sampled classes')
+parser.add_argument('--pretrained', default='', type=str, metavar='PATH',
+                    help='use the pretrained model')
+parser.add_argument('--resume', dest='resume', action='store_true',
+                    help='reload the current checkpoint, including model and optimizer')
 
 best_acc1 = 0
 global_training_steps = 0
@@ -176,19 +176,8 @@ def main_worker(gpu, ngpus_per_node, args):
             args.rank = args.rank * ngpus_per_node + gpu
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
-    # create model
-    # if args.pretrained:
-    #     print_txt("=> using pre-trained model '{}'".format(args.arch))
-    #     model = models.__dict__[args.arch](pretrained=True)
-    # else:
-    #     print_txt("=> creating model '{}'".format(args.arch))
-    #     model = models.__dict__[args.arch]()
-    # model = ImageNetModel(
-    #     # net_config='models/my_mobilenet/{}_config'.format(args.arch), 
-    #     net_config=getattr(configs, '{}_config'.format(args.arch)), 
-    #     num_classes=100)
     # model = models.__dict__[args.arch](num_classes=100)
-    model = BaseMobileNetV2(n_class=100, width_mult=1.5)
+    model = BaseMobileNetV2(n_class=args.n_classes, width_mult=1.5)
     if not os.path.exists(args.output + '/checkpoint'):
         os.makedirs(args.output + '/checkpoint')
     writer_dir = '{}/runs/{}/{}-{}-{}'.format(args.output, args.lr, args.arch, args.n_classes, args.ratio)
@@ -196,16 +185,17 @@ def main_worker(gpu, ngpus_per_node, args):
     global writer_txt
     writer_txt = '{}/log.txt'.format(writer_dir)
     if args.pretrained:
-        state_dict = remap_for_paramadapt(
-            load_path='checkpoint/model_best.pth.tar', 
-            model_dict=model.state_dict(), 
-            seed_num_layers=[1, 1, 2, 3, 4, 3, 3, 1, 1])
-        model_dict = model.state_dict()
-        for key, value in model_dict.items():
-            model_dict[key] = torch.zeros_like(value)
-        model_dict.update(state_dict)
-        model.load_state_dict(model_dict)
-        print_txt('success remap_for_paramadapt')
+        seed_dict = torch.load(args.pretrained, map_location='cpu')
+        if 'state_dict' in seed_dict.keys():
+            seed_dict = seed_dict['state_dict']
+        if 'model' in seed_dict.keys():
+            seed_dict = seed_dict['model']
+        if list(seed_dict.keys())[0].startswith('module.'):
+            seed_dict = {k[7:]: v for k, v in seed_dict.items()}
+        model_dict = seed_model.state_dict()
+        model_dict.update(seed_dict)
+        seed_model.load_state_dict(model_dict)
+        print_txt('success reload the parameters')
 
     if not torch.cuda.is_available():
         print_txt('using CPU, this will be slow')
@@ -247,14 +237,15 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # optionally resume from a checkpoint
     if args.resume:
-        if os.path.isfile(args.resume):
-            print_txt("=> loading checkpoint '{}'".format(args.resume))
+        filename = '{}/checkpoint/{}-{}-{}_final_train.pth.tar'.format(args.output, args.arch, args.n_classes, args.ratio)
+        if os.path.isfile(filename):
+            print_txt("=> loading checkpoint '{}'".format(filename))
             if args.gpu is None:
-                checkpoint = torch.load(args.resume)
+                checkpoint = torch.load(filename)
             else:
                 # Map model to be loaded to specified single gpu.
                 loc = 'cuda:{}'.format(args.gpu)
-                checkpoint = torch.load(args.resume, map_location=loc)
+                checkpoint = torch.load(filename, map_location=loc)
             args.start_epoch = checkpoint['epoch']
             best_acc1 = checkpoint['best_acc1']
             if args.gpu is not None:
@@ -263,9 +254,9 @@ def main_worker(gpu, ngpus_per_node, args):
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print_txt("=> loaded checkpoint '{}' (epoch {})"
-                  .format(args.resume, checkpoint['epoch']))
+                  .format(filename, checkpoint['epoch']))
         else:
-            print_txt("=> no checkpoint found at '{}'".format(args.resume))
+            print_txt("=> no checkpoint found at '{}'".format(filename))
 
     cudnn.benchmark = True
 
@@ -324,6 +315,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
         if not args.multiprocessing_distributed or (args.multiprocessing_distributed
                 and args.rank % ngpus_per_node == 0):
+            filename = '{}/checkpoint/{}-{}-{}_final_train.pth.tar'.format(args.output, args.arch, args.n_classes, args.ratio)
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
@@ -331,7 +323,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'best_acc1': best_acc1,
                 'optimizer' : optimizer.state_dict(),
             }, is_best, 
-            filename='{}/checkpoint/{}-{}-{}_final_train.pth.tar'.format(args.output, args.arch, args.n_classes, args.ratio))
+            filename=filename)
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args, writer):
