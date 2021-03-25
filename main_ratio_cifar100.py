@@ -17,6 +17,10 @@ from utils import progress_bar
 import random
 import numpy as np
 from cifar import CIFAR10, CIFAR100
+from models.my_mobilenet.derived_imagenet_net import ImageNetModel
+from models.my_mobilenet.param_remap import remap_for_paramadapt
+from models.my_mobilenet import configs
+from tensorboardX import SummaryWriter
 
 def seed_torch(seed):
     random.seed(seed)
@@ -32,16 +36,21 @@ seed_torch(2021)
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument('--model_name', default='ResNet10', type=str, help='model name')
+parser.add_argument('--model_name', default='mobilenet', type=str, help='model name')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-parser.add_argument('--ratio', default=1.0, type=float, help='sample ratio')
-parser.add_argument('--resume', '-r', action='store_true',
-                    help='resume from checkpoint')
+parser.add_argument('--ratio', default=0.5, type=float, help='sample ratio')
+parser.add_argument('--remapping', '-r', action='store_true',
+                    help='remapping from pretrained checkpoint')
+parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+writer_dir = 'runs/{}-{}-{}'.format(args.model_name, args.remapping, args.ratio)
+writer = SummaryWriter(writer_dir)
+global_training_steps = 0
 
 # Data
 print('==> Preparing data..')
@@ -64,7 +73,7 @@ trainset = CIFAR100(
     root='./data', train=True, download=True, transform=transform_train,
     ratio=args.ratio)
 trainloader = torch.utils.data.DataLoader(
-    trainset, batch_size=128, shuffle=True, num_workers=2)
+    trainset, batch_size=512, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR100(
     root='./data', train=False, download=True, transform=transform_test)
@@ -76,20 +85,32 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 
 # Model
 print('==> Building model..')
-net = getattr(models, args.model_name)(num_classes=100)
-net = net.to(device)
-if device == 'cuda':
-    net = torch.nn.DataParallel(net)
-    cudnn.benchmark = True
+# net = getattr(models, args.model_name)(num_classes=100)
+net = ImageNetModel(
+        net_config=getattr(configs, '{}_config'.format(args.model_name)), 
+        num_classes=100)
 
 if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/ckpt.pth')
+    checkpoint = torch.load('./checkpoint/ckpt.pth', map_location='cpu')
     net.load_state_dict(checkpoint['net'])
-    best_acc = checkpoint['acc']
-    start_epoch = checkpoint['epoch']
+    # best_acc = checkpoint['acc']
+    # start_epoch = checkpoint['epoch']
+
+if args.remapping:
+    state_dict = remap_for_paramadapt(
+        load_path='checkpoint/mobilenet_ckpt-0.5-CIFAR100.pth', 
+        model_dict=net.state_dict(), 
+        seed_num_layers=[1, 1, 2, 3, 4, 3, 3, 1, 1])
+    net.load_state_dict(state_dict)
+    print('success remap_for_paramadapt')
+
+net = net.to(device)
+if device == 'cuda':
+    net = torch.nn.DataParallel(net)
+    cudnn.benchmark = True
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
@@ -104,6 +125,7 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
+    global global_training_steps
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
@@ -116,10 +138,14 @@ def train(epoch):
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
-
+        acc = 100.*correct/total
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
+                     % (train_loss/(batch_idx+1), acc, correct, total))
+        writer.add_scalar('training iter loss', loss.item(), global_training_steps)
+        writer.add_scalar('training iter acc', acc, global_training_steps)
+        global_training_steps += 1
+    acc = 100.*correct/total
+    writer.add_scalar('train acc', acc, epoch)
 
 def test(epoch):
     global best_acc
@@ -137,12 +163,12 @@ def test(epoch):
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
-
             progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
+                         
     # Save checkpoint.
     acc = 100.*correct/total
+    writer.add_scalar('test acc', acc, epoch)
     if acc > best_acc:
         print('Saving..')
         state = {
@@ -152,7 +178,10 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_ckpt-{}-CIFAR100.pth'.format(args.model_name, args.ratio))
+        if args.remapping:
+            torch.save(state, './checkpoint/{}_ckpt-{}-CIFAR100_remapping.pth'.format(args.model_name, args.ratio))
+        else:
+            torch.save(state, './checkpoint/{}_ckpt-{}-CIFAR100.pth'.format(args.model_name, args.ratio))
         best_acc = acc
 
 

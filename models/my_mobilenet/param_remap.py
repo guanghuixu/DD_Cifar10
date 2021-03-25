@@ -18,6 +18,8 @@ def load_checkpoint(filename,
 
     if filename.endswith('.pth.tar'):  # our trained model in top-100 classes
         state_dict = checkpoint['state_dict']
+    elif filename.endswith('.pth'):  # our trained model in top-100 classes
+        state_dict = checkpoint['net']
     elif isinstance(checkpoint, OrderedDict) or isinstance(checkpoint, dict):
         state_dict = checkpoint
     else:
